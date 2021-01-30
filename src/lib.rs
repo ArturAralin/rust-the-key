@@ -22,7 +22,7 @@ macro_rules! define_key_part {
   };
 }
 
-type KeyPart = (*const &'static str, *const &'static [u8]);
+pub type KeyPart = (*const &'static str, *const &'static [u8]);
 
 #[macro_export]
 macro_rules! define_parts_seq {
@@ -139,7 +139,7 @@ pub struct Key<T: KeyPartsSequence> {
 }
 
 impl<T: KeyPartsSequence> Key<T> {
-  fn new(bytes: Vec<u8>, suffix_len: usize, key_len: usize) -> Self {
+  pub fn new(bytes: Vec<u8>, suffix_len: usize, key_len: usize) -> Self {
     Self {
       bytes,
       key_len,
@@ -186,11 +186,17 @@ impl<T: KeyPartsSequence> Into<Vec<u8>> for Key<T> {
 impl<T: KeyPartsSequence> std::fmt::Debug for Key<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let prefix_bytes = T::get_struct();
-    let suffix_bytes = &self.bytes[self.bytes.len() - self.suffix_len - self.key_len..self.bytes.len() - self.suffix_len];
+    let suffix_bytes = {
+      let bytes = &self.bytes[self.bytes.len() - self.suffix_len - self.key_len..self.bytes.len() - self.key_len];
+      match bytes.len() {
+        0 => None,
+        _ => Some(bytes),
+      }
+    };
 
     format_struct(
       prefix_bytes.as_slice(),
-      Some(suffix_bytes),
+      suffix_bytes,
       Some((self.bytes.as_slice(), self.bytes.len())),
       f
     )
