@@ -1,133 +1,30 @@
+mod formatting;
+
 use std::marker::PhantomData;
+use formatting::format_struct;
 
-#[macro_export]
-macro_rules! define_key_part {
-  ($name:ident, $bytes:expr) => {
-    pub struct $name {
-      key_part_name: *const &'static str,
-      bytes: *const &'static [u8],
-    }
+pub trait KeyPart {
+  fn get_name_pointer(&self) -> *const &'static str;
 
-    impl $name {
-      fn new() -> Self {
-        const KEY_PART: &'static [u8] = $bytes;
-        const KEY_PART_NAME: &'static str = &stringify!($name);
-
-        Self {
-          key_part_name: &KEY_PART_NAME,
-          bytes: &KEY_PART,
-        }
-      }
-    }
-  };
-}
-
-pub type KeyPart = (*const &'static str, *const &'static [u8]);
-
-#[macro_export]
-macro_rules! define_parts_seq {
-  ($name:ident, [$($key_part:ident),*]) => {
-    pub struct $name {
-      parts: Vec<KeyPart>,
-      len: usize,
-      suffix: Option<Vec<u8>>,
-    }
-
-    impl $name {
-      pub fn new() -> Self {
-        Self::create::<Vec<u8>>(None)
-      }
-
-      pub fn with_suffix<T: AsRef<[u8]>>(suffix: T) -> Self {
-        Self::create(Some(suffix))
-      }
-
-      fn create<T: AsRef<[u8]>>(suffix: Option<T>) -> Self {
-        let mut parts = Vec::new();
-        let mut len: usize = 0;
-
-        $({
-          let key = $key_part::new();
-
-          unsafe {
-            len += std::slice::from_raw_parts(key.bytes, 1)[0].len();
-          };
-
-          parts.push((key.key_part_name, key.bytes));
-        })*
-
-        let suffix = suffix.map(|bytes| {
-          let mut vec_suffix: Vec<u8> = Vec::with_capacity(bytes.as_ref().len());
-          vec_suffix.extend_from_slice(bytes.as_ref());
-          vec_suffix
-        });
-
-        Self {
-          parts,
-          len,
-          suffix,
-        }
-      }
-
-      pub fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self> {
-        let suffix_len = self.suffix.as_ref().map(|v| v.len()).unwrap_or(0);
-        let key = key.as_ref();
-        let mut result_key: Vec<u8> = Vec::with_capacity(self.len + suffix_len + key.len());
-
-        self.parts.iter().for_each(|key_part| {
-          let bytes = unsafe {
-            std::slice::from_raw_parts(key_part.1, 1)[0]
-          };
-
-          result_key.extend_from_slice(bytes);
-        });
-
-        if let Some(suffix) = &self.suffix {
-          result_key.extend_from_slice(suffix.as_slice());
-        }
-
-        result_key.extend_from_slice(key);
-
-        Key::new(
-          result_key,
-          self.suffix.as_ref().map(|v| v.len()).unwrap_or(0),
-          key.len(),
-        )
-      }
-
-      pub fn create_prefix(&self) -> Key<Self> {
-        self.create_key(&[])
-      }
-    }
-
-    impl KeyPartsSequence for $name {
-      fn get_struct() -> Vec<KeyPart> {
-        let mut parts = Vec::new();
-
-        $({
-          let key = $key_part::new();
-          parts.push((key.key_part_name, key.bytes));
-        })*
-
-        parts
-      }
-    }
-
-    impl std::fmt::Debug for $name {
-      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        format_struct(
-          self.parts.as_slice(),
-          self.suffix.as_ref().map(|v| v.as_slice()),
-          None,
-          f,
-        )
-      }
-    }
-  };
+  fn get_bytes_pointer(&self) -> *const &'static [u8];
 }
 
 pub trait KeyPartsSequence {
-  fn get_struct() -> Vec<KeyPart>;
+  fn get_struct() -> Vec<(*const &'static str, *const &'static [u8])>;
+
+  fn fmt_debug(
+    &self,
+    parts: &[(*const &'static str, *const &'static [u8])],
+    suffix: Option<&[u8]>,
+    f: &mut std::fmt::Formatter<'_>
+  ) -> std::fmt::Result {
+    format_struct(
+      parts,
+      suffix,
+      None,
+      f,
+    )
+  }
 }
 
 #[derive(Clone)]
@@ -209,69 +106,139 @@ impl<T: KeyPartsSequence> AsRef<[u8]> for Key<T> {
   }
 }
 
-#[inline]
-pub fn format_struct(
-  parts: &[KeyPart],
-  suffix: Option<&[u8]>,
-  key: Option<(&[u8], usize)>,
-  f: &mut std::fmt::Formatter<'_>
-) -> std::fmt::Result {
-  let mut prefix_len: usize = 0;
-  let mut parts = parts
-    .iter()
-    .map(|key_part| {
-      let (name, bytes) = unsafe {
-        let name = std::slice::from_raw_parts(key_part.0, 1)[0];
-        let bytes = std::slice::from_raw_parts(key_part.1, 1)[0];
+#[macro_export]
+macro_rules! define_key_part {
+  ($name:ident, $bytes:expr) => {
+    pub struct $name {
+      key_part_name: *const &'static str,
+      bytes: *const &'static [u8],
+    }
 
-        prefix_len += bytes.len();
+    impl KeyPart for $name {
+      fn get_name_pointer(&self)  -> *const &'static str {
+        self.key_part_name
+      }
 
-        (name, bytes)
-      };
-
-      format!("{}{:?}", name, bytes)
-    })
-    .collect::<Vec<String>>();
-
-  if let Some(suffix) = suffix {
-    prefix_len += suffix.len();
-
-    parts.push(format!("Suffix={:?}", suffix));
-  }
-
-  if let Some(key) = key {
-    parts.push(format!("Key={:?}", &key.0[prefix_len..]));
-  }
-
-  if f.alternate() {
-    let mut i: usize = 0;
-
-    for part in parts.iter() {
-      let new_line_symbol = match i {
-        0 => "",
-        _ => "\n"
-      };
-      let angle_symbol = match i {
-        0 => "",
-        _ => "└ "
-      };
-      let padding = " ".repeat(i);
-
-      i += 2;
-
-      let write_result = write!(f, "{}{}{}{}", new_line_symbol, padding, angle_symbol, part);
-
-      if write_result.is_err() {
-        return write_result;
+      fn get_bytes_pointer(&self) -> *const &'static [u8] {
+        self.bytes
       }
     }
-  } else {
-    return write!(f, "{}", parts.join(" -> "));
-  }
 
-  Ok(())
+    impl $name {
+      pub fn new() -> Self {
+        const KEY_PART: &'static [u8] = $bytes;
+        const KEY_PART_NAME: &'static str = &stringify!($name);
+
+        Self {
+          key_part_name: &KEY_PART_NAME,
+          bytes: &KEY_PART,
+        }
+      }
+    }
+  };
 }
 
+#[macro_export]
+macro_rules! define_parts_seq {
+  ($name:ident, [$($key_part:ident),*]) => {
+    pub struct $name {
+      parts: Vec<(*const &'static str, *const &'static [u8])>,
+      len: usize,
+      suffix: Option<Vec<u8>>,
+    }
+
+    impl $name {
+      pub fn new() -> Self {
+        Self::create::<Vec<u8>>(None)
+      }
+
+      pub fn with_suffix<T: AsRef<[u8]>>(suffix: T) -> Self {
+        Self::create(Some(suffix))
+      }
+
+      fn create<T: AsRef<[u8]>>(suffix: Option<T>) -> Self {
+        let mut parts = Vec::new();
+        let mut len: usize = 0;
+
+        $({
+          let key_part = $key_part::new();
+          let bytes_pointer = key_part.get_bytes_pointer();
+
+          unsafe {
+            len += std::slice::from_raw_parts(bytes_pointer, 1)[0].len();
+          };
+
+          parts.push((key_part.get_name_pointer(), bytes_pointer));
+        })*
+
+        let suffix = suffix.map(|bytes| {
+          let mut vec_suffix: Vec<u8> = Vec::with_capacity(bytes.as_ref().len());
+          vec_suffix.extend_from_slice(bytes.as_ref());
+          vec_suffix
+        });
+
+        Self {
+          parts,
+          len,
+          suffix,
+        }
+      }
+
+      pub fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self> {
+        let suffix_len = self.suffix.as_ref().map(|v| v.len()).unwrap_or(0);
+        let key = key.as_ref();
+        let mut result_key: Vec<u8> = Vec::with_capacity(self.len + suffix_len + key.len());
+
+        self.parts.iter().for_each(|key_part| {
+          let bytes = unsafe {
+            std::slice::from_raw_parts(key_part.1, 1)[0]
+          };
+
+          result_key.extend_from_slice(bytes);
+        });
+
+        if let Some(suffix) = &self.suffix {
+          result_key.extend_from_slice(suffix.as_slice());
+        }
+
+        result_key.extend_from_slice(key);
+
+        Key::new(
+          result_key,
+          self.suffix.as_ref().map(|v| v.len()).unwrap_or(0),
+          key.len(),
+        )
+      }
+
+      pub fn create_prefix(&self) -> Key<Self> {
+        self.create_key(&[])
+      }
+    }
+
+    impl KeyPartsSequence for $name {
+      fn get_struct() -> Vec<(*const &'static str, *const &'static [u8])> {
+        let mut parts = Vec::new();
+
+        $({
+          let key = $key_part::new();
+          parts.push((key.get_name_pointer(), key.get_bytes_pointer()));
+        })*
+
+        parts
+      }
+    }
+
+    impl std::fmt::Debug for $name {
+      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_debug(
+          self.parts.as_slice(),
+          self.suffix.as_ref().map(|v| v.as_slice()),
+          f
+        )
+      }
+    }
+  };
+}
 
 #[cfg(test)]
 mod tests {
