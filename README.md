@@ -1,5 +1,5 @@
 # the-key
-Simple fast key generation tool for KV stores
+Simple fast key management tool for key-value stores
 
 # How to use
 ```rust

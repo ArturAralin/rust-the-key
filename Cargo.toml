@@ -1,9 +1,9 @@
 [package]
 name = "the-key"
-version = "0.1.0"
+description = "A simple fast key management tool for key-value stores"
+version = "0.0.1"
 authors = ["Artur Aralin <artur.aralin97@gmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+readme = "README.md"
+repository = "https://github.com/ArturAralin/rust-the-key"
+license = "MIT"
