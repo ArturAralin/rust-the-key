@@ -8,9 +8,9 @@ use the_key::*;
 
 
 // Define key parts
-define_key_part(Users, &[11]);
-define_key_part(Profiles, &[22]);
-define_key_part(Photos, &[33]);
+define_key_part(Users, &[11, 11]);
+define_key_part(Profiles, &[22, 22]);
+define_key_part(Photos, &[33, 33]);
 
 // Define keys sequences
 define_parts_seq(UsersProfiles, [Users, UsersProfiles]);
@@ -21,11 +21,22 @@ fn main() {
   let profiles = UsersProfiles::new();
   let photos = UsersPhotos::with_suffix(user_id);
 
-  // Get user
-  profiles.create_key(user_id.as_ref()); // [11, 22, 81, 81]
-  // Get user's photos
-  photos.create_prefix(); // [11, 33, 81, 81]
-  // Get user's one photo
-  photos.create_key(&[99]); // [11, 33, 81, 81, 99]
+  let user_profile_key = profiles.create_key(user_id.as_ref());
+
+  // Debug example
+  println!("{:?}", user_profile_key); // Users[11, 11] -> Profiles[22, 22] -> Key=[81, 81]
+
+  // Pretty debug example
+  println!("{:#?}", user_profile_key);
+  // Users[11, 11]
+  // └ Profiles[22, 22]
+  //   └ Key=[81, 81]
+
+  // User
+  user_profile_key.to_vec(); // [11, 11, 22, 22, 81, 81]
+  // User's photos
+  photos.create_prefix().to_vec(); // [11, 11, 33, 33, 81, 81]
+  // User's one photo
+  photos.create_key(&[99, 99]).to_vec(); // [11, 11, 33, 33, 81, 81, 99, 99]
 }
 ```
