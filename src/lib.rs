@@ -186,6 +186,11 @@ macro_rules! define_parts_seq {
         self.extensions.as_ref().map(|v| v.as_slice())
       )
     }
+
+
+    fn to_vec(&self) -> Vec<u8> {
+      self.create_key(&[]).to_vec()
+    }
   }
 
   impl KeyPartsSequence for $name {
