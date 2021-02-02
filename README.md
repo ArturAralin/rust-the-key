@@ -17,7 +17,7 @@ define_parts_seq!(UsersPhotos, [Users, Photos]);
 fn main() {
   let user_id = &[81, 81];
   let profiles = UsersProfiles::new();
-  let photos = UsersPhotos::with_suffix(user_id);
+  let photos = UsersPhotos::new().extend("UserId", user_id);
 
   let user_profile_key = profiles.create_key(user_id);
 
@@ -30,10 +30,10 @@ fn main() {
   // └ Profiles[22, 22]
   //   └ Key=[81, 81]
 
+  println!("{:?}", photos); // Users[11, 11] -> UsersPhotos[33, 33] -> UserId[81, 81]
+
   // User
   user_profile_key.to_vec(); // [11, 11, 22, 22, 81, 81]
-  // User's photos
-  photos.create_prefix().to_vec(); // [11, 11, 33, 33, 81, 81]
   // User's one photo
   photos.create_key(&[99, 99]).to_vec(); // [11, 11, 33, 33, 81, 81, 99, 99]
 }
