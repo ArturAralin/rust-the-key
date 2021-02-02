@@ -29,17 +29,19 @@ pub trait KeyPartsSequence {
 }
 
 #[derive(Clone)]
-pub struct Key<T: KeyPartsSequence> {
+pub struct Key<'a, T: KeyPartsSequence> {
   bytes: Vec<u8>,
   key_len: usize,
+  extensions: Option<&'a [KeyExtensionsItem]>,
   phantom: PhantomData<T>,
 }
 
-impl<T: KeyPartsSequence> Key<T> {
-  pub fn new(bytes: Vec<u8>, key_len: usize) -> Self {
+impl<'a, T: KeyPartsSequence> Key<'a, T> {
+  pub fn new(bytes: Vec<u8>, key_len: usize, extensions: Option<&'a [KeyExtensionsItem]>) -> Self {
     Self {
       bytes,
       key_len,
+      extensions,
       phantom: PhantomData,
     }
   }
@@ -57,24 +59,24 @@ impl<T: KeyPartsSequence> Key<T> {
   }
 }
 
-impl<T: KeyPartsSequence> Into<Vec<u8>> for Key<T> {
+impl<'a, T: KeyPartsSequence> Into<Vec<u8>> for Key<'a, T> {
   fn into(self) -> Vec<u8> {
     self.to_vec()
   }
 }
 
-impl<T: KeyPartsSequence> std::fmt::Debug for Key<T> {
+impl<'a, T: KeyPartsSequence> std::fmt::Debug for Key<'a, T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     format_struct(
       T::get_struct().as_slice(),
-      None,
+      self.extensions,
       Some((self.bytes.as_slice(), self.bytes.len())),
       f,
     )
   }
 }
 
-impl<T: KeyPartsSequence> AsRef<[u8]> for Key<T> {
+impl<'a, T: KeyPartsSequence> AsRef<[u8]> for Key<'a, T> {
   fn as_ref(&self) -> &[u8] {
     self.bytes.as_slice()
   }
@@ -181,6 +183,7 @@ macro_rules! define_parts_seq {
       Key::new(
         result_key,
         key.len(),
+        self.extensions.as_ref().map(|v| v.as_slice())
       )
     }
   }
@@ -328,9 +331,16 @@ mod tests {
       "KeyPart1[10, 20]\n  └ KeyPart2[30, 40]\n    └ ExtensionPart1[50, 60]\n      └ ExtensionPart2[70, 80]",
     );
 
+    let key = key_seq.create_key(&[90, 100]);
+
     assert_eq!(
-      key_seq.create_key(&[90, 100]).as_ref(),
+      key.as_ref(),
       &[10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    );
+
+    assert_eq!(
+      format!("{:?}", key),
+      "KeyPart1[10, 20] -> KeyPart2[30, 40] -> ExtensionPart1[50, 60] -> ExtensionPart2[70, 80] -> Key=[90, 100]",
     );
   }
 }
