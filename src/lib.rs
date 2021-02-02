@@ -80,6 +80,19 @@ impl<T: KeyPartsSequence> AsRef<[u8]> for Key<T> {
   }
 }
 
+// macro_rules! count_items {
+//   ($($name:ident),*) => {
+//     {
+//       let mut count = 0usize;
+//       $(
+//         let _ = stringify!($name);
+//         count += 1;
+//       )*
+//       count
+//     }
+//   }
+// }
+
 #[macro_export]
 macro_rules! define_key_part {
   ($name:ident, $bytes:expr) => {
@@ -124,7 +137,7 @@ macro_rules! define_parts_seq {
 
   impl $name {
     pub fn new() -> Self {
-      let mut parts: Vec<KeyPartItem> = Vec::with_capacity(count_items!(key_part));
+      let mut parts: Vec<KeyPartItem> = Vec::new();
       let mut len: usize = 0;
 
       $({
@@ -215,19 +228,6 @@ macro_rules! define_parts_seq {
     }
   }
   };
-}
-
-macro_rules! count_items {
-  ($($name:ident),*) => {
-    {
-      let mut count = 0usize;
-      $(
-        let _ = stringify!($name);
-        count += 1;
-      )*
-      count
-    }
-  }
 }
 
 #[cfg(test)]
