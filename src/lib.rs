@@ -140,7 +140,7 @@ macro_rules! define_key_seq {
 
     impl $name {
       pub fn new() -> Self {
-        let key_seq_data: (usize, [KeyPartItem; count!($($key_part),*)]) = {
+        let (len, parts): (usize, [KeyPartItem; count!($($key_part),*)]) = {
           let mut arr:[KeyPartItem; count!($($key_part),*)] = [("", &[]); count!($($key_part),*)];
           let mut i = 0;
           let mut len = 0;
@@ -155,12 +155,12 @@ macro_rules! define_key_seq {
             i += 1;
           })*
 
-          (0, arr)
+          (len, arr)
         };
 
         Self {
-          len: key_seq_data.0,
-          parts: key_seq_data.1,
+          len,
+          parts,
           extensions: None,
         }
       }
