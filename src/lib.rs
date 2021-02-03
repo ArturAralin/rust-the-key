@@ -82,22 +82,24 @@ impl<'a, T: KeyPartsSequence> AsRef<[u8]> for Key<'a, T> {
   }
 }
 
-// macro_rules! count_items {
-//   ($($name:ident),*) => {
-//     {
-//       let mut count = 0usize;
-//       $(
-//         let _ = stringify!($name);
-//         count += 1;
-//       )*
-//       count
-//     }
-//   }
-// }
+#[allow(unused_macros)]
+macro_rules! count {
+  ($($name:ident),*) => {
+    {
+      let mut count = 0usize;
+      $(
+        let n = stringify!($name);
+        count += 1;
+      )*
+      count
+    }
+  }
+}
 
 #[macro_export]
 macro_rules! define_key_part {
   ($name:ident, $bytes:expr) => {
+    #[derive(Debug)]
     pub struct $name {
       key_part_name: *const &'static str,
       bytes: *const &'static [u8],
@@ -130,111 +132,113 @@ macro_rules! define_key_part {
 #[macro_export]
 macro_rules! define_parts_seq {
   ($name:ident, [$($key_part:ident),*]) => {
-  pub struct $name {
-    // mb use array [Self; N] to escape heap allocations
-    parts: Vec<KeyPartItem>,
-    extensions: Option<Vec<KeyExtensionsItem>>,
-    len: usize,
-  }
-
-  impl $name {
-    pub fn new() -> Self {
-      let mut parts: Vec<KeyPartItem> = Vec::new();
-      let mut len: usize = 0;
-
-      $({
-        let key_part = $key_part::new();
-        let bytes_pointer = key_part.get_bytes_pointer();
-
-        unsafe {
-          len += std::slice::from_raw_parts(bytes_pointer, 1)[0].len();
-        };
-
-        parts.push((key_part.get_name_pointer(), bytes_pointer));
-      })*
-
-      Self {
-        parts,
-        extensions: None,
-        len,
-      }
+    pub struct $name {
+      parts: [KeyPartItem; count!($($key_part),*)],
+      extensions: Option<Vec<KeyExtensionsItem>>,
+      len: usize,
     }
 
-    pub fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self> {
-      let key = key.as_ref();
-      let mut result_key: Vec<u8> = Vec::with_capacity(self.len + key.len());
+    impl $name {
+      pub fn new() -> Self {
+        let mut parts: [KeyPartItem; count!($($key_part),*)] = [(0x0 as *const &'static str, 0x0 as *const &'static [u8]); count!($($key_part),*)];
+        let mut len: usize = 0;
+        let mut i = 0;
 
-      self.parts.iter().for_each(|key_part| {
-        let bytes = unsafe {
-          std::slice::from_raw_parts(key_part.1, 1)[0]
-        };
+        $({
+          let key_part = $key_part::new();
+          let bytes_pointer = key_part.get_bytes_pointer();
 
-        result_key.extend_from_slice(bytes);
-      });
+          unsafe {
+            len += std::slice::from_raw_parts(bytes_pointer, 1)[0].len();
+          };
 
-      if let Some(extensions) = &self.extensions {
-        extensions.iter().for_each(|(_, bytes)| {
+          parts[i] = (key_part.get_name_pointer(), bytes_pointer);
+
+          i += 1;
+        })*
+
+        Self {
+          parts,
+          extensions: None,
+          len,
+        }
+      }
+
+      pub fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self> {
+        let key = key.as_ref();
+        let mut result_key: Vec<u8> = Vec::with_capacity(self.len + key.len());
+
+        self.parts.iter().for_each(|key_part| {
+          let bytes = unsafe {
+            std::slice::from_raw_parts(key_part.1, 1)[0]
+          };
+
           result_key.extend_from_slice(bytes);
         });
+
+        if let Some(extensions) = &self.extensions {
+          extensions.iter().for_each(|(_, bytes)| {
+            result_key.extend_from_slice(bytes);
+          });
+        }
+
+        result_key.extend_from_slice(key);
+
+        Key::new(
+          result_key,
+          key.len(),
+          self.extensions.as_ref().map(|v| v.as_slice())
+        )
       }
 
-      result_key.extend_from_slice(key);
 
-      Key::new(
-        result_key,
-        key.len(),
+      fn to_vec(&self) -> Vec<u8> {
+        self.create_key(&[]).to_vec()
+      }
+    }
+
+    impl KeyPartsSequence for $name {
+      fn get_struct() -> Vec<KeyPartItem> {
+        let mut parts = Vec::new();
+
+        $({
+          let key = $key_part::new();
+          parts.push((key.get_name_pointer(), key.get_bytes_pointer()));
+        })*
+
+        parts
+      }
+
+      fn get_extensions(&self) -> Option<&[KeyExtensionsItem]> {
         self.extensions.as_ref().map(|v| v.as_slice())
-      )
+      }
+
+      fn extend<B: AsRef<[u8]>>(mut self, key_part_name: &'static str, bytes: B) -> Self {
+        let key_bytes = bytes.as_ref().to_vec();
+        self.len += key_bytes.len();
+
+        self.extensions = match self.extensions {
+          Some(mut extensions) => {
+            extensions.push((key_part_name, key_bytes));
+
+            Some(extensions)
+          },
+          None => Some(vec![(key_part_name, key_bytes)]),
+        };
+
+        self
+      }
     }
 
-
-    fn to_vec(&self) -> Vec<u8> {
-      self.create_key(&[]).to_vec()
+    impl std::fmt::Debug for $name {
+      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_debug(
+          &self.parts,
+          self.extensions.as_ref().map(|v| v.as_slice()),
+          f
+        )
+      }
     }
-  }
-
-  impl KeyPartsSequence for $name {
-    fn get_struct() -> Vec<KeyPartItem> {
-      let mut parts = Vec::new();
-
-      $({
-        let key = $key_part::new();
-        parts.push((key.get_name_pointer(), key.get_bytes_pointer()));
-      })*
-
-      parts
-    }
-
-    fn get_extensions(&self) -> Option<&[KeyExtensionsItem]> {
-      self.extensions.as_ref().map(|v| v.as_slice())
-    }
-
-    fn extend<B: AsRef<[u8]>>(mut self, key_part_name: &'static str, bytes: B) -> Self {
-      let key_bytes = bytes.as_ref().to_vec();
-      self.len += key_bytes.len();
-
-      self.extensions = match self.extensions {
-        Some(mut extensions) => {
-          extensions.push((key_part_name, key_bytes));
-
-          Some(extensions)
-        },
-        None => Some(vec![(key_part_name, key_bytes)]),
-      };
-
-      self
-    }
-  }
-
-  impl std::fmt::Debug for $name {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      self.fmt_debug(
-        self.parts.as_slice(),
-        self.extensions.as_ref().map(|v| v.as_slice()),
-        f
-      )
-    }
-  }
   };
 }
 
@@ -338,10 +342,7 @@ mod tests {
 
     let key = key_seq.create_key(&[90, 100]);
 
-    assert_eq!(
-      key.as_ref(),
-      &[10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-    );
+    assert_eq!(key.as_ref(), &[10, 20, 30, 40, 50, 60, 70, 80, 90, 100],);
 
     assert_eq!(
       format!("{:?}", key),
