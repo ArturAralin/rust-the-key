@@ -3,12 +3,12 @@ mod formatting;
 use formatting::format_struct;
 use std::marker::PhantomData;
 
-pub type KeyPartItem = (*const &'static str, *const &'static [u8]);
+pub type KeyPartItem = (&'static str, &'static [u8]);
 pub type KeyExtensionsItem = (&'static str, Vec<u8>);
 
 pub trait KeyPart {
-  fn get_name_pointer(&self) -> *const &'static str;
-  fn get_bytes_pointer(&self) -> *const &'static [u8];
+  fn get_name(&self) -> &'static str;
+  fn get_bytes(&self) -> &'static [u8];
 }
 
 pub trait KeyPartsSequence {
@@ -101,22 +101,22 @@ macro_rules! define_key_part {
   ($name:ident, $bytes:expr) => {
     #[derive(Debug)]
     pub struct $name {
-      key_part_name: *const &'static str,
-      bytes: *const &'static [u8],
+      key_part_name: &'static str,
+      bytes: &'static [u8],
     }
 
     impl KeyPart for $name {
-      fn get_name_pointer(&self) -> *const &'static str {
+      fn get_name(&self) -> &'static str {
         self.key_part_name
       }
 
-      fn get_bytes_pointer(&self) -> *const &'static [u8] {
+      fn get_bytes(&self) -> &'static [u8] {
         self.bytes
       }
     }
 
     impl $name {
-      pub fn new() -> Self {
+      pub const fn new() -> Self {
         const KEY_PART: &'static [u8] = $bytes;
         const KEY_PART_NAME: &'static str = &stringify!($name);
 
@@ -140,27 +140,28 @@ macro_rules! define_key_seq {
 
     impl $name {
       pub fn new() -> Self {
-        let mut parts: [KeyPartItem; count!($($key_part),*)] = [(0x0 as *const &'static str, 0x0 as *const &'static [u8]); count!($($key_part),*)];
-        let mut len: usize = 0;
-        let mut i = 0;
+        let key_seq_data: (usize, [KeyPartItem; count!($($key_part),*)]) = {
+          let mut arr:[KeyPartItem; count!($($key_part),*)] = [("", &[]); count!($($key_part),*)];
+          let mut i = 0;
+          let mut len = 0;
 
-        $({
-          let key_part = $key_part::new();
-          let bytes_pointer = key_part.get_bytes_pointer();
+          $({
+            let key_part = $key_part::new();
+            let bytes = key_part.get_bytes();
 
-          unsafe {
-            len += std::slice::from_raw_parts(bytes_pointer, 1)[0].len();
-          };
+            len += bytes.len();
 
-          parts[i] = (key_part.get_name_pointer(), bytes_pointer);
+            arr[i] = (key_part.get_name(), bytes);
+            i += 1;
+          })*
 
-          i += 1;
-        })*
+          (0, arr)
+        };
 
         Self {
-          parts,
+          len: key_seq_data.0,
+          parts: key_seq_data.1,
           extensions: None,
-          len,
         }
       }
 
@@ -168,11 +169,7 @@ macro_rules! define_key_seq {
         let key = key.as_ref();
         let mut result_key: Vec<u8> = Vec::with_capacity(self.len + key.len());
 
-        self.parts.iter().for_each(|key_part| {
-          let bytes = unsafe {
-            std::slice::from_raw_parts(key_part.1, 1)[0]
-          };
-
+        self.parts.iter().for_each(|(_, bytes)| {
           result_key.extend_from_slice(bytes);
         });
 
@@ -203,7 +200,7 @@ macro_rules! define_key_seq {
 
         $({
           let key = $key_part::new();
-          parts.push((key.get_name_pointer(), key.get_bytes_pointer()));
+          parts.push((key.get_name(), key.get_bytes()));
         })*
 
         parts
@@ -253,13 +250,13 @@ mod tests {
     let kp = KeyPart1::new();
 
     assert_eq!(
-      unsafe { std::slice::from_raw_parts(kp.key_part_name, 1)[0] },
+      kp.get_name(),
       "KeyPart1",
     );
 
     assert_eq!(
-      unsafe { std::slice::from_raw_parts(kp.bytes, 1)[0] },
-      "my_key_part_1".as_bytes(),
+      kp.get_bytes(),
+      b"my_key_part_1",
     );
   }
 

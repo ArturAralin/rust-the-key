@@ -8,15 +8,8 @@ pub fn format_struct(
 
   let mut parts = parts
     .iter()
-    .map(|key_part| {
-      let (name, bytes) = unsafe {
-        let name = std::slice::from_raw_parts(key_part.0, 1)[0];
-        let bytes = std::slice::from_raw_parts(key_part.1, 1)[0];
-
-        prefix_len += bytes.len();
-
-        (name, bytes)
-      };
+    .map(|(name, bytes)| {
+      prefix_len += bytes.len();
 
       format!("{}{:?}", name, bytes)
     })
