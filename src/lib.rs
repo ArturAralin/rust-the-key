@@ -130,7 +130,7 @@ macro_rules! define_key_part {
 }
 
 #[macro_export]
-macro_rules! define_parts_seq {
+macro_rules! define_key_seq {
   ($name:ident, [$($key_part:ident),*]) => {
     pub struct $name {
       parts: [KeyPartItem; count!($($key_part),*)],
@@ -267,7 +267,7 @@ mod tests {
   fn key_from_seq_test() {
     define_key_part!(KeyPart1, &[10, 20]);
     define_key_part!(KeyPart2, &[30, 40]);
-    define_parts_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
 
     assert_eq!(
       MyPrefixSeq::new().create_key(&[50, 60]).to_vec(),
@@ -279,7 +279,7 @@ mod tests {
   fn key_get_key_test() {
     define_key_part!(KeyPart1, &[10, 20]);
     define_key_part!(KeyPart2, &[30, 40]);
-    define_parts_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
 
     let key_seq = MyPrefixSeq::new();
     let key = key_seq.create_key(&[70, 80]);
@@ -292,7 +292,7 @@ mod tests {
   fn key_get_prefix_test() {
     define_key_part!(KeyPart1, &[10, 20]);
     define_key_part!(KeyPart2, &[30, 40]);
-    define_parts_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
 
     let key_seq = MyPrefixSeq::new();
     let key = key_seq.create_key(&[70, 80]);
@@ -304,7 +304,7 @@ mod tests {
   fn key_seq_debug() {
     define_key_part!(KeyPart1, &[10, 20]);
     define_key_part!(KeyPart2, &[30, 40]);
-    define_parts_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
 
     assert_eq!(
       format!("{:?}", MyPrefixSeq::new()),
@@ -317,7 +317,7 @@ mod tests {
     define_key_part!(KeyPart1, &[10, 20]);
     define_key_part!(KeyPart2, &[30, 40]);
     define_key_part!(KeyPart3, &[50, 60]);
-    define_parts_seq!(MyPrefixSeq, [KeyPart1, KeyPart2, KeyPart3]);
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2, KeyPart3]);
 
     assert_eq!(
       format!("{:#?}", MyPrefixSeq::new()),
@@ -329,7 +329,7 @@ mod tests {
   fn key_seq_extend() {
     define_key_part!(KeyPart1, &[10, 20]);
     define_key_part!(KeyPart2, &[30, 40]);
-    define_parts_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
 
     let key_seq = MyPrefixSeq::new()
       .extend("ExtensionPart1", &[50, 60])
