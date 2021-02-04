@@ -140,23 +140,17 @@ macro_rules! define_key_seq {
 
     impl $name {
       pub fn new() -> Self {
-        let (len, parts): (usize, [KeyPartItem; count!($($key_part),*)]) = {
-          let mut arr:[KeyPartItem; count!($($key_part),*)] = [("", &[]); count!($($key_part),*)];
-          let mut i = 0;
-          let mut len = 0;
-
+        let mut len = 0;
+        let parts: [KeyPartItem; count!($($key_part),*)] = [
           $({
             let key_part = $key_part::new();
             let bytes = key_part.get_bytes();
 
             len += bytes.len();
 
-            arr[i] = (key_part.get_name(), bytes);
-            i += 1;
-          })*
-
-          (len, arr)
-        };
+            (key_part.get_name(), bytes)
+          },)*
+        ];
 
         Self {
           len,
@@ -187,7 +181,6 @@ macro_rules! define_key_seq {
           self.extensions.as_ref().map(|v| v.as_slice())
         )
       }
-
 
       fn to_vec(&self) -> Vec<u8> {
         self.create_key(&[]).to_vec()
