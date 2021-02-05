@@ -12,12 +12,14 @@ pub trait KeyPart {
 }
 
 pub trait KeyPartsSequence {
+  #[doc(hidden)]
   fn get_struct() -> Vec<KeyPartItem>;
+  #[doc(hidden)]
   fn get_extensions(&self) -> Option<&[KeyExtensionsItem]>;
+
   fn extend<B: AsRef<[u8]>>(self, key_part_name: &'static str, bytes: B) -> Self;
 
-  // fn to_vec()
-
+  #[doc(hidden)]
   fn fmt_debug(
     &self,
     parts: &[KeyPartItem],
@@ -160,6 +162,8 @@ macro_rules! define_key_seq {
         }
       }
 
+      // This just a public api
+      #[allow(dead_code)]
       pub fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self> {
         let key = key.as_ref();
         let mut result_key: Vec<u8> = Vec::with_capacity(self.len + key.len());
@@ -183,6 +187,8 @@ macro_rules! define_key_seq {
         )
       }
 
+      // This just a public api
+      #[allow(dead_code)]
       fn to_vec(&self) -> Vec<u8> {
         self.create_key(&[]).to_vec()
       }
