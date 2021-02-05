@@ -7,6 +7,7 @@ pub type KeyPartItem = (&'static str, &'static [u8]);
 pub type KeyExtensionsItem = (&'static str, Vec<u8>);
 
 pub trait KeyPart {
+  fn new() -> Self;
   fn get_name(&self) -> &'static str;
   fn get_bytes(&self) -> &'static [u8];
 }
@@ -16,6 +17,8 @@ pub trait KeyPartsSequence {
   fn get_struct() -> Vec<KeyPartItem>;
   #[doc(hidden)]
   fn get_extensions(&self) -> Option<&[KeyExtensionsItem]>;
+
+  fn new() -> Self;
 
   fn extend<B: AsRef<[u8]>>(self, key_part_name: &'static str, bytes: B) -> Self;
 
@@ -109,6 +112,10 @@ macro_rules! define_key_part {
     }
 
     impl KeyPart for $name {
+      fn new() -> Self {
+        $name::new()
+      }
+
       fn get_name(&self) -> &'static str {
         self.key_part_name
       }
@@ -195,6 +202,10 @@ macro_rules! define_key_seq {
     }
 
     impl KeyPartsSequence for $name {
+      fn new() -> Self {
+        $name::new()
+      }
+
       fn get_struct() -> Vec<KeyPartItem> {
         let mut parts = Vec::new();
 
