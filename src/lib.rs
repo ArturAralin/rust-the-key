@@ -1,3 +1,43 @@
+//! This library provides easy api for key management for key-value storages
+//!
+//! # Example
+//! ```rust
+//! use the_key::*;
+
+//! // Define key parts
+//! define_key_part!(Users, &[11, 11]);
+//! define_key_part!(Profiles, &[22, 22]);
+//! define_key_part!(Photos, &[33, 33]);
+//!
+//! // Define keys sequences
+//! define_parts_seq!(UsersProfiles, [Users, Profiles]);
+//! define_parts_seq!(UsersPhotos, [Users, Photos]);
+//!
+//! fn main() {
+//!   let user_id = &[81, 81];
+//!   let profiles = UsersProfiles::new();
+//!   let photos = UsersPhotos::new().extend("UserId", user_id);
+//!
+//!   let user_profile_key = profiles.create_key(user_id);
+//!
+//!   // Debug example
+//!   println!("{:?}", user_profile_key); // Users[11, 11] -> Profiles[22, 22] -> Key=[81, 81]
+//!
+//!   // Pretty debug example
+//!   println!("{:#?}", user_profile_key);
+//!   // Users[11, 11]
+//!   // └ Profiles[22, 22]
+//!   //   └ Key=[81, 81]
+//!
+//!   println!("{:?}", photos); // Users[11, 11] -> UsersPhotos[33, 33] -> UserId[81, 81]
+//!
+//!   // User
+//!   user_profile_key.to_vec(); // [11, 11, 22, 22, 81, 81]
+//!   // User's one photo
+//!   photos.create_key(&[99, 99]).to_vec(); // [11, 11, 33, 33, 81, 81, 99, 99]
+//! }
+//! ```
+
 mod formatting;
 
 use formatting::format_struct;
@@ -8,11 +48,15 @@ pub type KeyExtensionsItem = (&'static str, Vec<u8>);
 
 pub trait KeyPart {
   fn new() -> Self;
+
+  /// Returns key part name
   fn get_name(&self) -> &'static str;
+
+  /// Returns key part bytes
   fn get_bytes(&self) -> &'static [u8];
 }
 
-pub trait KeyPartsSequence {
+pub trait KeyPartsSequence: Clone {
   #[doc(hidden)]
   fn get_struct() -> Vec<KeyPartItem>;
   #[doc(hidden)]
@@ -20,6 +64,20 @@ pub trait KeyPartsSequence {
 
   fn new() -> Self;
 
+  /// Extends key sequence with a new part
+  ///
+  /// # Example
+  /// ```
+  /// define_key_part!(Part1, &[10, 20]);
+  /// define_key_part!(Part2, &[30, 40]);
+  /// define_key_seq!(MyKeySeq, [Part1, Part2]);
+  ///
+  /// let key_seq = MyKeySeq::new().extend("Part3", &[50, 60]);
+  /// assert_eq!(
+  ///   &key_seq.create_key(&[70, 80]),
+  ///   &[10, 20, 30, 40, 50, 60, 70, 80]
+  /// )
+  /// ```
   fn extend<B: AsRef<[u8]>>(self, key_part_name: &'static str, bytes: B) -> Self;
 
   #[doc(hidden)]
@@ -142,6 +200,7 @@ macro_rules! define_key_part {
 #[macro_export]
 macro_rules! define_key_seq {
   ($name:ident, [$($key_part:ident),*]) => {
+    #[derive(Clone)]
     pub struct $name {
       parts: [KeyPartItem; $crate::count!($($key_part),*)],
       extensions: Option<Vec<KeyExtensionsItem>>,
