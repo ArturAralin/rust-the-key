@@ -82,13 +82,14 @@ impl<'a, T: KeyPartsSequence> AsRef<[u8]> for Key<'a, T> {
   }
 }
 
-#[allow(unused_macros)]
+#[doc(hidden)]
+#[macro_export]
 macro_rules! count {
   ($($name:ident),*) => {
     {
       let mut count = 0usize;
       $(
-        let n = stringify!($name);
+        let _ = stringify!($name);
         count += 1;
       )*
       count
@@ -133,7 +134,7 @@ macro_rules! define_key_part {
 macro_rules! define_key_seq {
   ($name:ident, [$($key_part:ident),*]) => {
     pub struct $name {
-      parts: [KeyPartItem; count!($($key_part),*)],
+      parts: [KeyPartItem; $crate::count!($($key_part),*)],
       extensions: Option<Vec<KeyExtensionsItem>>,
       len: usize,
     }
@@ -141,7 +142,7 @@ macro_rules! define_key_seq {
     impl $name {
       pub fn new() -> Self {
         let mut len = 0;
-        let parts: [KeyPartItem; count!($($key_part),*)] = [
+        let parts: [KeyPartItem; $crate::count!($($key_part),*)] = [
           $({
             let key_part = $key_part::new();
             let bytes = key_part.get_bytes();
