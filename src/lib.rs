@@ -1,7 +1,7 @@
 //! This library provides easy api for key management for key-value storages
 //!
 //! # Example
-//! ```rust
+//! ```no_run
 //! use the_key::*;
 
 //! // Define key parts
@@ -10,8 +10,8 @@
 //! define_key_part!(Photos, &[33, 33]);
 //!
 //! // Define keys sequences
-//! define_parts_seq!(UsersProfiles, [Users, Profiles]);
-//! define_parts_seq!(UsersPhotos, [Users, Photos]);
+//! define_key_seq!(UsersProfiles, [Users, Profiles]);
+//! define_key_seq!(UsersPhotos, [Users, Photos]);
 //!
 //! fn main() {
 //!   let user_id = &[81, 81];
@@ -68,17 +68,42 @@ pub trait KeyPartsSequence: Clone {
   ///
   /// # Example
   /// ```
+  /// use the_key::*;
   /// define_key_part!(Part1, &[10, 20]);
   /// define_key_part!(Part2, &[30, 40]);
   /// define_key_seq!(MyKeySeq, [Part1, Part2]);
   ///
-  /// let key_seq = MyKeySeq::new().extend("Part3", &[50, 60]);
-  /// assert_eq!(
-  ///   &key_seq.create_key(&[70, 80]),
-  ///   &[10, 20, 30, 40, 50, 60, 70, 80]
-  /// )
+  /// fn main() {
+  ///   let key_seq = MyKeySeq::new().extend("Part3", &[50, 60]);
+  ///
+  ///   assert_eq!(
+  ///     key_seq.to_vec(),
+  ///     vec![10, 20, 30, 40, 50, 60]
+  ///   )
+  /// }
   /// ```
   fn extend<B: AsRef<[u8]>>(self, key_part_name: &'static str, bytes: B) -> Self;
+
+  /// Creates new [`the_key::Key`][Key] object
+  ///
+  /// # Example
+  /// ```
+  /// use the_key::*;
+  /// define_key_part!(Part1, &[10, 20]);
+  /// define_key_part!(Part2, &[30, 40]);
+  /// define_key_seq!(MyKeySeq, [Part1, Part2]);
+  ///
+  /// fn main() {
+  ///   let key_seq = MyKeySeq::new();
+  ///   let key = key_seq.create_key(&[50, 60]);
+  ///
+  ///   assert_eq!(
+  ///     key.to_vec(),
+  ///     vec![10, 20, 30, 40, 50, 60],
+  ///   );
+  /// }
+  /// ```
+  fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self>;
 
   #[doc(hidden)]
   fn fmt_debug(
@@ -109,14 +134,17 @@ impl<'a, T: KeyPartsSequence> Key<'a, T> {
     }
   }
 
+  /// Returns key bytes
   pub fn get_key(&self) -> &[u8] {
     &self.bytes[self.bytes.len() - self.key_len..]
   }
 
+  /// Returns prefix bytes
   pub fn get_prefix(&self) -> &[u8] {
     &self.bytes[..self.bytes.len() - self.key_len]
   }
 
+  /// Moves out key bytes
   pub fn to_vec(self) -> Vec<u8> {
     self.bytes
   }
@@ -160,6 +188,10 @@ macro_rules! count {
   }
 }
 
+/// Defines a key part. Each key part is a uniq struct whose implement trait [`the_key::KeyPart`][KeyPart]
+///
+/// # Example
+/// define_key_part!(KeyPartName, "key_part_bytes".as_bytes());
 #[macro_export]
 macro_rules! define_key_part {
   ($name:ident, $bytes:expr) => {
@@ -197,6 +229,12 @@ macro_rules! define_key_part {
   };
 }
 
+/// Defines a key sequence. Each key part is a uniq struct whose implement trait [`the_key::KeyPartsSequence`][KeyPartsSequence]
+///
+/// # Example
+/// define_key_part!(KeyPart1, "key_part_1".as_bytes());
+/// define_key_part!(KeyPart2, "key_part_2".as_bytes());
+/// define_key_seq!(KeyPartsSeq, [KeyPart1, KeyPart2]);
 #[macro_export]
 macro_rules! define_key_seq {
   ($name:ident, [$($key_part:ident),*]) => {
@@ -226,31 +264,6 @@ macro_rules! define_key_seq {
           parts,
           extensions: None,
         }
-      }
-
-      // This just a public api
-      #[allow(dead_code)]
-      pub fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self> {
-        let key = key.as_ref();
-        let mut result_key: Vec<u8> = Vec::with_capacity(self.len + key.len());
-
-        self.parts.iter().for_each(|(_, bytes)| {
-          result_key.extend_from_slice(bytes);
-        });
-
-        if let Some(extensions) = &self.extensions {
-          extensions.iter().for_each(|(_, bytes)| {
-            result_key.extend_from_slice(bytes);
-          });
-        }
-
-        result_key.extend_from_slice(key);
-
-        Key::new(
-          result_key,
-          key.len(),
-          self.extensions.as_ref().map(|v| v.as_slice())
-        )
       }
 
       // This just a public api
@@ -294,6 +307,29 @@ macro_rules! define_key_seq {
         };
 
         self
+      }
+
+      fn create_key<T: AsRef<[u8]>>(&self, key: T) -> Key<Self> {
+        let key = key.as_ref();
+        let mut result_key: Vec<u8> = Vec::with_capacity(self.len + key.len());
+
+        self.parts.iter().for_each(|(_, bytes)| {
+          result_key.extend_from_slice(bytes);
+        });
+
+        if let Some(extensions) = &self.extensions {
+          extensions.iter().for_each(|(_, bytes)| {
+            result_key.extend_from_slice(bytes);
+          });
+        }
+
+        result_key.extend_from_slice(key);
+
+        Key::new(
+          result_key,
+          key.len(),
+          self.extensions.as_ref().map(|v| v.as_slice())
+        )
       }
     }
 
