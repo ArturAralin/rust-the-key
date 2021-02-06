@@ -15,11 +15,13 @@ pub fn format_struct(
     })
     .collect::<Vec<String>>();
 
-  extensions.unwrap_or(&[]).iter().for_each(|(name, bytes)| {
-    prefix_len += bytes.len();
+  if let Some(extensions) = extensions {
+    for (name, bytes) in extensions.iter() {
+      prefix_len += bytes.len();
 
-    parts.push(format!("{}{:?}", name, bytes));
-  });
+      parts.push(format!("{}{:?}", name, bytes));
+    }
+  }
 
   if let Some(key) = key {
     parts.push(format!("Key={:?}", &key.0[prefix_len..]));
