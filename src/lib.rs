@@ -1,9 +1,8 @@
 //! This library provides easy api for key management for key-value storages
 //!
 //! # Example
-//! ```no_run
+//! ```
 //! use the_key::*;
-
 //! // Define key parts
 //! define_key_part!(Users, &[11, 11]);
 //! define_key_part!(Profiles, &[22, 22]);
@@ -21,7 +20,10 @@
 //!   let user_profile_key = profiles.create_key(user_id);
 //!
 //!   // Debug example
-//!   println!("{:?}", user_profile_key); // Users[11, 11] -> Profiles[22, 22] -> Key=[81, 81]
+//!   assert_eq!(
+//!     format!("{:?}", user_profile_key),
+//!     "Users[11, 11] -> Profiles[22, 22] -> Key=[81, 81]",
+//!   );
 //!
 //!   // Pretty debug example
 //!   println!("{:#?}", user_profile_key);
@@ -29,12 +31,22 @@
 //!   // └ Profiles[22, 22]
 //!   //   └ Key=[81, 81]
 //!
-//!   println!("{:?}", photos); // Users[11, 11] -> UsersPhotos[33, 33] -> UserId[81, 81]
+//!   assert_eq!(
+//!     format!("{:?}", photos),
+//!     "Users[11, 11] -> Photos[33, 33] -> UserId[81, 81]",
+//!   );
 //!
 //!   // User
-//!   user_profile_key.to_vec(); // [11, 11, 22, 22, 81, 81]
+//!   assert_eq!(
+//!     user_profile_key.to_vec(),
+//!     vec![11, 11, 22, 22, 81, 81],
+//!   );
+//!
 //!   // User's one photo
-//!   photos.create_key(&[99, 99]).to_vec(); // [11, 11, 33, 33, 81, 81, 99, 99]
+//!   assert_eq!(
+//!     photos.create_key(&[99, 99]).to_vec(),
+//!     vec![11, 11, 33, 33, 81, 81, 99, 99],
+//!   );
 //! }
 //! ```
 
@@ -191,7 +203,11 @@ macro_rules! count {
 /// Defines a key part. Each key part is a uniq struct whose implement trait [`the_key::KeyPart`][KeyPart]
 ///
 /// # Example
+/// ```
+/// use the_key::*;
+///
 /// define_key_part!(KeyPartName, "key_part_bytes".as_bytes());
+/// ```
 #[macro_export]
 macro_rules! define_key_part {
   ($name:ident, $bytes:expr) => {
@@ -232,9 +248,13 @@ macro_rules! define_key_part {
 /// Defines a key sequence. Each key part is a uniq struct whose implement trait [`the_key::KeyPartsSequence`][KeyPartsSequence]
 ///
 /// # Example
+/// ```
+/// use the_key::*;
+///
 /// define_key_part!(KeyPart1, "key_part_1".as_bytes());
 /// define_key_part!(KeyPart2, "key_part_2".as_bytes());
 /// define_key_seq!(KeyPartsSeq, [KeyPart1, KeyPart2]);
+/// ```
 #[macro_export]
 macro_rules! define_key_seq {
   ($name:ident, [$($key_part:ident),*]) => {
