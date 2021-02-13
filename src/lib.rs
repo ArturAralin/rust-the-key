@@ -50,6 +50,9 @@
 //! }
 //! ```
 
+#![feature(test)]
+extern crate test;
+
 mod formatting;
 
 use formatting::format_struct;
@@ -368,6 +371,7 @@ macro_rules! define_key_seq {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use test::Bencher;
 
   #[test]
   fn key_part_test() {
@@ -471,5 +475,54 @@ mod tests {
       format!("{:?}", key),
       "KeyPart1[10, 20] -> KeyPart2[30, 40] -> ExtensionPart1[50, 60] -> ExtensionPart2[70, 80] -> Key=[90, 100]",
     );
+  }
+
+  // Benches
+
+  #[bench]
+  fn bench_key_parts_spawning(b: &mut Bencher) {
+    define_key_part!(KeyPart1, "key_part_1".as_bytes());
+    define_key_part!(KeyPart2, "key_part_2".as_bytes());
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+
+    b.iter(|| {
+      MyPrefixSeq::new();
+    })
+  }
+
+  #[bench]
+  fn bench_key_parts_extending(b: &mut Bencher) {
+    define_key_part!(KeyPart1, "key_part_1".as_bytes());
+    define_key_part!(KeyPart2, "key_part_2".as_bytes());
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+
+    b.iter(|| {
+      MyPrefixSeq::new().extend("KeyPart3", "key_part_3".as_bytes())
+    })
+  }
+
+  #[bench]
+  fn bench_create_key(b: &mut Bencher) {
+    define_key_part!(KeyPart1, "key_part_1".as_bytes());
+    define_key_part!(KeyPart2, "key_part_2".as_bytes());
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+
+    let seq = &MyPrefixSeq::new();
+
+    b.iter(|| {
+      seq.create_key("some_key".as_bytes());
+    })
+  }
+
+  #[bench]
+  fn bench_create_key_with_extending(b: &mut Bencher) {
+    define_key_part!(KeyPart1, "key_part_1".as_bytes());
+    define_key_part!(KeyPart2, "key_part_2".as_bytes());
+    define_key_seq!(MyPrefixSeq, [KeyPart1, KeyPart2]);
+
+    b.iter(|| {
+      let seq = MyPrefixSeq::new().extend("KeyPart3", "key_part_3");
+      seq.create_key("some_key".as_bytes());
+    })
   }
 }
